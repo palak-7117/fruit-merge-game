@@ -8,7 +8,7 @@ const config = {
         default: 'arcade',
         arcade: {
             gravity: { y: 600 },
-            debug: true // Keeps the bounding boxes visible for now
+            debug: true // Change to false later to hide outlines
         }
     },
     scene: {
@@ -20,80 +20,110 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// Global variables to track game objects
 let ground;
 let currentFruit = null; 
-let fruitsGroup; // A group to hold all dropped fruits
+let fruitsGroup;
+let score = 0;
+let scoreText;
 
-function preload() {
-    // Assets loading placeholder
-}
+// Define our fruit tier list (sizes, colors, and upgrade paths)
+const FRUIT_TYPES = [
+    { id: 0, radius: 15, color: 0xe74c3c }, // 0: Cherry (Small Red)
+    { id: 1, radius: 25, color: 0xff7675 }, // 1: Strawberry (Medium Pink)
+    { id: 2, radius: 40, color: 0x9b59b6 }, // 2: Grape (Large Purple)
+    { id: 3, radius: 60, color: 0xf1c40f }  // 3: Lemon (Giant Yellow)
+];
+
+function preload() {}
 
 function create() {
-    console.log("Controls setup started.");
+    console.log("Merge systems active.");
 
-    // 1. Create the floor platform
+    // 1. Score display
+    scoreText = this.add.text(20, 20, 'Score: 0', { fontSize: '24px', fill: '#2c3e50', fontFamily: 'Arial' });
+
     ground = this.add.rectangle(225, 680, 450, 40, 0x2c3e50);
     this.physics.add.existing(ground, true);
 
-    // 2. Create a physics group to hold all the dropped fruits.
-    // This makes it easy to handle collisions for all fruits at once.
     fruitsGroup = this.physics.add.group();
 
-    // Tell Phaser that any fruit inside the fruitsGroup should bump into the ground
     this.physics.add.collider(fruitsGroup, ground);
     
-    // Tell Phaser that fruits inside the fruitsGroup should bump into EACH OTHER
-    this.physics.add.collider(fruitsGroup, fruitsGroup);
+    // 2. This is where the magic happens. When two fruits touch, run 'handleMerge'
+    this.physics.add.collider(fruitsGroup, fruitsGroup, handleMerge, null, this);
 
-    // 3. Spawn our very first controllable fruit
     spawnNewFruit.call(this);
 
-    // 4. Listen for mouse/touch clicks anywhere on the screen
     this.input.on('pointerdown', (pointer) => {
         if (currentFruit) {
-            // Drop the fruit by turning gravity back on!
             currentFruit.body.setAllowGravity(true);
-            
-            // Add it to our group so it can collide with other objects
             fruitsGroup.add(currentFruit);
-            
-            // Disconnect it from our controls variable so it stays on the ground
             currentFruit = null;
-
-            // Wait 1 second, then spawn the next fruit at the top
-            this.time.delayedCall(1000, spawnNewFruit, [], this);
+            this.time.delayedCall(800, spawnNewFruit, [], this);
         }
     });
 }
 
 function update() {
-    // 5. Every frame, if a player is holding a fruit, make it follow the mouse pointer
     if (currentFruit) {
         let pointerX = this.input.activePointer.x;
-        
-        // Keep the fruit inside the walls (boundaries) of our 450px wide board
-        if (pointerX < 20) pointerX = 20;
-        if (pointerX > 430) pointerX = 430;
-
+        let radius = currentFruit.displayOriginX; // dynamic boundary check based on fruit size
+        if (pointerX < radius) pointerX = radius;
+        if (pointerX > 450 - radius) pointerX = 450 - radius;
         currentFruit.x = pointerX;
     }
 }
 
-// Custom function to create a new fruit at the top of the screen
 function spawnNewFruit() {
-    // Spawn a red circle at y=50 (near the top)
-    let newFruit = this.add.circle(225, 50, 20, 0xe74c3c);
+    // Drop only small fruits (ID 0 or ID 1) to keep the game fair
+    let randomType = FRUIT_TYPES[Math.floor(Math.random() * 2)];
     
-    // Give it physics
-    this.physics.add.existing(newFruit);
-    
-    // CRUCIAL: Turn off gravity temporarily so it floats at the top while aiming
-    newFruit.body.setAllowGravity(false);
-    
-    newFruit.body.setBounce(0.2);
-    newFruit.body.setCollideWorldBounds(true);
+    currentFruit = createFruitObject.call(this, 225, 50, randomType);
+    currentFruit.body.setAllowGravity(false);
+}
 
-    // Set this new circle as our active, controllable fruit
-    currentFruit = newFruit;
+// Helper function to build a fruit object with its specific properties
+function createFruitObject(x, y, typeData) {
+    let fruit = this.add.circle(x, y, typeData.radius, typeData.color);
+    this.physics.add.existing(fruit);
+    
+    fruit.body.setBounce(0.2);
+    fruit.body.setCollideWorldBounds(true);
+    
+    // Save custom properties inside the object so we can read them later
+    fruit.fruitId = typeData.id;
+    
+    return fruit;
+}
+
+// The core algorithm of your game
+function handleMerge(fruit1, fruit2) {
+    // Rule 1: Check if they are the exact same type of fruit
+    // Rule 2: Check to ensure they haven't already been marked for deletion
+    if (fruit1.fruitId === fruit2.fruitId && fruit1.active && fruit2.active) {
+        
+        let currentId = fruit1.fruitId;
+        let nextId = currentId + 1;
+
+        // Calculate mid-point position between the two fruits to spawn the upgraded one
+        let newX = (fruit1.x + fruit2.x) / 2;
+        let newY = (fruit1.y + fruit2.y) / 2;
+
+        // Destroy both old fruits safely
+        fruit1.destroy();
+        fruit2.destroy();
+
+        // Update score
+        score += (currentId + 1) * 10;
+        scoreText.setText('Score: ' + score);
+
+        // If there's a bigger fruit available in our tier list, spawn it!
+        if (nextId < FRUIT_TYPES.length) {
+            let nextFruitType = FRUIT_TYPES[nextId];
+            let upgradedFruit = createFruitObject.call(this, newX, newY, nextFruitType);
+            
+            // Add the new fruit immediately to our physics group
+            fruitsGroup.add(upgradedFruit);
+        }
+    }
 }
