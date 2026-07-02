@@ -1,19 +1,18 @@
 // ---------------------------------------------------------
-// FRUIT MERGE GAME (9-TIER DIFF PROFILE WITH BLUEBERRY)
+// FRUIT MERGE GAME (9-TIER DIFF PROFILE WITH GREEN APPLE SWAP)
 // Built with Phaser 3 + Matter.js physics
 // ---------------------------------------------------------
 
-// Added Blueberry at Tier 0. Shifted all other fruits up by 1 tier.
 const FRUITS = [
-  { tier: 0, name: "Blueberry",  radius: 11, color: 0x1a237e, score: 1 },  // New Tier 0
-  { tier: 1, name: "Cherry",     radius: 16, color: 0xe53935, score: 2 },  
-  { tier: 2, name: "Strawberry", radius: 20, color: 0xff5c8a, score: 4 }, 
-  { tier: 3, name: "Grape",      radius: 29, color: 0x8e24aa, score: 7 }, 
-  { tier: 4, name: "Orange",     radius: 40, color: 0xfb8c00, score: 11 }, 
-  { tier: 5, name: "Peach",      radius: 65, color: 0xffab91, score: 16 }, 
-  { tier: 6, name: "Coconut",    radius: 95, color: 0x5d4037, score: 26 }, 
-  { tier: 7, name: "Pineapple",  radius: 124, color: 0xfbc02d, score: 41 }, 
-  { tier: 8, name: "Watermelon", radius: 150, color: 0x2e7d32, score: 65 }, 
+  { tier: 0, name: "Blueberry",  radius: 11, score: 1 },  
+  { tier: 1, name: "Cherry",     radius: 16, score: 2 },  
+  { tier: 2, name: "Strawberry", radius: 20, score: 4 }, 
+  { tier: 3, name: "Grape",      radius: 29, score: 7 }, 
+  { tier: 4, name: "Orange",     radius: 40, score: 11 }, 
+  { tier: 5, name: "Peach",      radius: 65, score: 16 }, 
+  { tier: 6, name: "Coconut",    radius: 95, score: 26 }, 
+  { tier: 7, name: "Green Apple", radius: 124, score: 41 }, // Replaced Pineapple, kept size
+  { tier: 8, name: "Watermelon", radius: 150, score: 65 }, 
 ];
 
 const GAME_WIDTH = 480;
@@ -30,7 +29,6 @@ let gameOver = false;
 let aboveLineSince = null;
 
 function randomDropTier() {
-  // Players can drop the first 4 fruits: Blueberry, Cherry, Strawberry, or Grape.
   return Phaser.Math.Between(0, 3);
 }
 
@@ -40,15 +38,11 @@ class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    FRUITS.forEach((fruit) => {
-      const g = this.make.graphics({ x: 0, y: 0, add: false });
-      const d = fruit.radius * 2;
-      g.fillStyle(fruit.color, 1);
-      g.fillCircle(fruit.radius, fruit.radius, fruit.radius);
-      g.lineStyle(3, 0x000000, 0.15);
-      g.strokeCircle(fruit.radius, fruit.radius, fruit.radius);
-      g.generateTexture(`fruit-${fruit.tier}`, d, d);
-      g.destroy();
+    // Array updated: "greenapple" replaces "pineapple"
+    const names = ["blueberry", "cherry", "strawberry", "grape", "orange", "peach", "coconut", "greenapple", "watermelon"];
+    
+    FRUITS.forEach((fruit, index) => {
+      this.load.image(`fruit-${fruit.tier}`, `assets/${names[index]}.png`);
     });
   }
 
@@ -65,6 +59,10 @@ class MainScene extends Phaser.Scene {
 
     this.previewX = GAME_WIDTH / 2;
     this.previewSprite = this.add.image(this.previewX, DROP_Y, `fruit-${nextFruitTier}`);
+    
+    const previewFruitData = FRUITS[nextFruitTier];
+    this.previewSprite.setDisplaySize(previewFruitData.radius * 2, previewFruitData.radius * 2);
+    
     this.updateNextFruitUI();
 
     this.input.on("pointermove", (pointer) => {
@@ -98,6 +96,9 @@ class MainScene extends Phaser.Scene {
     const tier = nextFruitTier;
     const fruit = FRUITS[tier];
     const body = this.matter.add.image(this.previewX, DROP_Y, `fruit-${tier}`);
+    
+    body.setDisplaySize(fruit.radius * 2, fruit.radius * 2);
+    
     body.setCircle(fruit.radius);
     body.setBounce(0.12); 
     body.setFriction(0.3);
@@ -108,6 +109,10 @@ class MainScene extends Phaser.Scene {
 
     nextFruitTier = randomDropTier();
     this.previewSprite.setTexture(`fruit-${nextFruitTier}`);
+    
+    const nextFruitData = FRUITS[nextFruitTier];
+    this.previewSprite.setDisplaySize(nextFruitData.radius * 2, nextFruitData.radius * 2);
+    
     this.updateNextFruitUI();
 
     this.time.delayedCall(450, () => {
@@ -152,13 +157,15 @@ class MainScene extends Phaser.Scene {
       a.destroy();
       b.destroy();
 
-      // Automatically adapts to checking the last index dynamically
       const isMaxTier = (tier === FRUITS.length - 1);
 
       if (!isMaxTier) {
         const newTier = tier + 1;
         const newFruit = FRUITS[newTier];
         const merged = this.matter.add.image(midX, midY, `fruit-${newTier}`);
+        
+        merged.setDisplaySize(newFruit.radius * 2, newFruit.radius * 2);
+        
         merged.setCircle(newFruit.radius);
         merged.setBounce(0.12);
         merged.setFriction(0.3);
