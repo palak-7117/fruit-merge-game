@@ -15,7 +15,7 @@ const FRUITS = [
   { tier: 6, name: "Pear",       radius: 60, color: 0x9ccc65, score: 28 },
   { tier: 7, name: "Peach",      radius: 68, color: 0xffab91, score: 36 },
   { tier: 8, name: "Pineapple",  radius: 78, color: 0xfbc02d, score: 45 },
-  { tier: 9, name: "Melon",      radius: 90, color: 0x66bb6a, score: 55 },
+  { tier: 9, name: "Coconut",    radius: 90, color: 0x5d4037, score: 55 }, // Coconut Swap
   { tier: 10, name: "Watermelon", radius: 104, color: 0x2e7d32, score: 66 },
 ];
 
@@ -91,11 +91,6 @@ class MainScene extends Phaser.Scene {
     });
 
     // Collision handling drives the merge logic.
-    // IMPORTANT: we do NOT destroy/create bodies here. Matter is still
-    // mid-step during this event, and mutating the world now (especially
-    // with large fruits touching several others at once) corrupts its
-    // internal state and freezes the page. Instead we just queue the
-    // merge and process it safely in update(), after the step is done.
     this.pendingMerges = [];
     this.matter.world.on("collisionstart", (event) => {
       event.pairs.forEach((pair) => this.queueMerge(pair));
@@ -138,7 +133,7 @@ class MainScene extends Phaser.Scene {
     const b = pair.bodyB.gameObject;
     if (!a || !b) return;
     if (!a.getData || !b.getData) return;
-    if (!a.active || !b.active) return; // already destroyed/queued this frame
+    if (!a.active || !b.active) return; 
 
     const tierA = a.getData("tier");
     const tierB = b.getData("tier");
@@ -146,9 +141,6 @@ class MainScene extends Phaser.Scene {
     if (tierA !== tierB) return;
     if (a.getData("merging") || b.getData("merging")) return;
 
-    // Mark both as merging immediately (synchronously, still safe since
-    // this only flips a flag) to prevent the same pair, or either body
-    // paired with a third fruit, from being queued again this frame.
     a.setData("merging", true);
     b.setData("merging", true);
 
@@ -162,24 +154,21 @@ class MainScene extends Phaser.Scene {
     this.pendingMerges = [];
 
     merges.forEach(({ a, b, tier }) => {
-      // Guard again in case something already cleaned these up
       if (!a.active || !b.active) return;
 
       const midX = (a.x + b.x) / 2;
       const midY = (a.y + b.y) / 2;
       const fruitData = FRUITS[tier];
 
+      // Add the score of the merged fruit items
       score += fruitData.score;
 
       a.destroy();
       b.destroy();
 
-      // Defensive check: instead of only trusting tier arithmetic,
-      // confirm the next tier actually exists in FRUITS. This prevents
-      // ever trying to spawn an undefined fruit (which would render
-      // using a missing/fallback texture and look like a broken,
-      // oversized blob) if the array ever gets edited or mismatched.
-      const isMaxTier = tier >= FRUITS.length - 1 || !FRUITS[tier + 1];
+      // Check if the current merging components are the highest tier (Watermelon)
+      const isMaxTier = (tier === FRUITS.length - 1);
+
       if (!isMaxTier) {
         const newTier = tier + 1;
         const newFruit = FRUITS[newTier];
@@ -191,22 +180,13 @@ class MainScene extends Phaser.Scene {
         merged.setData("tier", newTier);
         merged.setData("merging", false);
         merged.setData("droppedAt", this.time.now);
-
-        // No tween here on purpose: if this fruit gets merged again
-        // before a tween finishes, Phaser keeps trying to animate a
-        // destroyed object's scale, which throws every frame and
-        // freezes the tab. A flat scale is more stable than it sounds.
         merged.setScale(1);
-
-        // Zero out velocity so that spawning into a crowded spot
-        // (e.g. near a wall) doesn't make Matter's overlap-resolution
-        // fling the new fruit (and its neighbors) violently, which is
-        // the other thing that was causing the freeze.
         merged.setVelocity(0, 0);
         merged.setAngularVelocity(0);
       } else {
-        // Max-tier merge: just a score bonus burst, nothing left to spawn
-        score += 50;
+        // Max-tier double watermelon merge pop event
+        score += 100; // Extra celebration bonus points
+        console.log("Two Watermelons combined! Clean pop logic triggered.");
       }
     });
 
@@ -230,11 +210,9 @@ class MainScene extends Phaser.Scene {
     bodies.forEach((body) => {
       if (body.isStatic || !body.gameObject) return;
       const go = body.gameObject;
-      // Ignore fruits that were just dropped — give them time to fall
       const age = this.time.now - (go.getData("droppedAt") || 0);
       if (age < 700) return;
 
-      // Only count fruits that have basically stopped moving (settled)
       const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2);
       if (speed > 0.3) return;
 
