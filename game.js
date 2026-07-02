@@ -11,12 +11,12 @@ const FRUITS = [
   { tier: 2, name: "Grape",      radius: 28, color: 0x8e24aa, score: 6 },
   { tier: 3, name: "Orange",     radius: 36, color: 0xfb8c00, score: 10 },
   { tier: 4, name: "Lemon",      radius: 44, color: 0xfdd835, score: 15 },
-  { tier: 5, name: "Apple",      radius: 52, color: 0x43a047, score: 21 },
-  { tier: 6, name: "Pear",       radius: 60, color: 0x9ccc65, score: 28 },
-  { tier: 7, name: "Peach",      radius: 68, color: 0xffab91, score: 36 },
-  { tier: 8, name: "Pineapple",  radius: 78, color: 0xfbc02d, score: 45 },
-  { tier: 9, name: "Coconut",    radius: 90, color: 0x5d4037, score: 55 }, // Coconut Swap
-  { tier: 10, name: "Watermelon", radius: 104, color: 0x2e7d32, score: 66 },
+  { tier: 5, name: "Apple",      radius: 54, color: 0x43a047, score: 21 }, 
+  { tier: 6, name: "Pear",       radius: 66, color: 0x9ccc65, score: 28 }, 
+  { tier: 7, name: "Peach",      radius: 80, color: 0xffab91, score: 36 }, 
+  { tier: 8, name: "Pineapple",  radius: 96, color: 0xfbc02d, score: 45 }, 
+  { tier: 9, name: "Coconut",    radius: 115, color: 0x5d4037, score: 55 }, 
+  { tier: 10, name: "Watermelon", radius: 140, color: 0x2e7d32, score: 66 }, // NEW GIANT RADIUS
 ];
 
 const GAME_WIDTH = 480;
