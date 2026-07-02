@@ -1,5 +1,5 @@
 // ---------------------------------------------------------
-// FRUIT MERGE GAME (9-TIER DIFF PROFILE WITH GREEN APPLE SWAP)
+// FRUIT MERGE GAME (TEXTURE ANTI-ALIASING & SMOOTH SCALING)
 // Built with Phaser 3 + Matter.js physics
 // ---------------------------------------------------------
 
@@ -29,7 +29,6 @@ let gameOver = false;
 let aboveLineSince = null;
 
 function randomDropTier() {
-  // Player drops from the first 4 tiers (Blueberry, Cherry, Strawberry, Grape)
   return Phaser.Math.Between(0, 3);
 }
 
@@ -39,9 +38,7 @@ class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // Looks for lowercase filenames inside your assets/ folder
     const names = ["blueberry", "cherry", "strawberry", "grape", "orange", "peach", "coconut", "greenapple", "watermelon"];
-    
     FRUITS.forEach((fruit, index) => {
       this.load.image(`fruit-${fruit.tier}`, `assets/${names[index]}.png`);
     });
@@ -50,22 +47,18 @@ class MainScene extends Phaser.Scene {
   create() {
     this.matter.world.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Dynamic bounding container
     this.matter.add.rectangle(-WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
     this.matter.add.rectangle(GAME_WIDTH + WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
     this.matter.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + WALL_THICKNESS / 2, GAME_WIDTH, WALL_THICKNESS, { isStatic: true });
 
-    // Visual dead-line indicator
     this.lineGraphic = this.add.graphics();
     this.lineGraphic.lineStyle(2, 0xff5252, 0.6);
     this.lineGraphic.lineBetween(0, GAME_OVER_LINE_Y, GAME_WIDTH, GAME_OVER_LINE_Y);
 
-    // Initial drop preview placement
     this.previewX = GAME_WIDTH / 2;
     this.previewSprite = this.add.image(this.previewX, DROP_Y, `fruit-${nextFruitTier}`);
     
-    const previewFruitData = FRUITS[nextFruitTier];
-    this.previewSprite.setDisplaySize(previewFruitData.radius * 2, previewFruitData.radius * 2);
+    this.scaleSpriteToRadius(this.previewSprite, FRUITS[nextFruitTier].radius);
     
     this.updateNextFruitUI();
 
@@ -93,6 +86,17 @@ class MainScene extends Phaser.Scene {
     });
   }
 
+  // FIXED: Enhanced scale engine with hardware anti-alias filtering
+  scaleSpriteToRadius(sprite, radius) {
+    const targetWidth = radius * 2;
+    const nativeWidth = sprite.texture.getSourceImage().width;
+    if (nativeWidth > 0) {
+      sprite.setScale(targetWidth / nativeWidth);
+      // Force WebGL/Canvas to use high-quality linear interpolation filtering
+      sprite.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
+  }
+
   dropFruit() {
     if (!canDrop) return;
     canDrop = false;
@@ -101,8 +105,9 @@ class MainScene extends Phaser.Scene {
     const fruit = FRUITS[tier];
     const body = this.matter.add.image(this.previewX, DROP_Y, `fruit-${tier}`);
     
-    body.setDisplaySize(fruit.radius * 2, fruit.radius * 2);
     body.setCircle(fruit.radius);
+    this.scaleSpriteToRadius(body, fruit.radius);
+    
     body.setBounce(0.12); 
     body.setFriction(0.3);
     body.setFrictionAir(0.001);
@@ -112,9 +117,7 @@ class MainScene extends Phaser.Scene {
 
     nextFruitTier = randomDropTier();
     this.previewSprite.setTexture(`fruit-${nextFruitTier}`);
-    
-    const nextFruitData = FRUITS[nextFruitTier];
-    this.previewSprite.setDisplaySize(nextFruitData.radius * 2, nextFruitData.radius * 2);
+    this.scaleSpriteToRadius(this.previewSprite, FRUITS[nextFruitTier].radius);
     
     this.updateNextFruitUI();
 
@@ -167,15 +170,15 @@ class MainScene extends Phaser.Scene {
         const newFruit = FRUITS[newTier];
         const merged = this.matter.add.image(midX, midY, `fruit-${newTier}`);
         
-        merged.setDisplaySize(newFruit.radius * 2, newFruit.radius * 2);
         merged.setCircle(newFruit.radius);
+        this.scaleSpriteToRadius(merged, newFruit.radius);
+        
         merged.setBounce(0.12);
         merged.setFriction(0.3);
         merged.setFrictionAir(0.001);
         merged.setData("tier", newTier);
         merged.setData("merging", false);
         merged.setData("droppedAt", this.time.now);
-        merged.setScale(1);
         merged.setVelocity(0, 0);
         merged.setAngularVelocity(0);
       } else {
@@ -257,6 +260,8 @@ const config = {
   height: GAME_HEIGHT,
   parent: "phaser-game",
   backgroundColor: "#fff3df",
+  antialias: true,            // FIXED: Forces hardware anti-aliasing globally
+  pixelArt: false,            // FIXED: Turns off sharp pixel cutting filters
   physics: {
     default: "matter",
     matter: {
