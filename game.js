@@ -1,18 +1,19 @@
 // ---------------------------------------------------------
-// FRUIT MERGE GAME (8-TIER AGGRESSIVE DIFFICULTY PROFILE)
+// FRUIT MERGE GAME (9-TIER DIFF PROFILE WITH BLUEBERRY)
 // Built with Phaser 3 + Matter.js physics
 // ---------------------------------------------------------
 
-// Strawberry adjusted to 20, Watermelon to 150. Intermediate steps re-balanced.
+// Added Blueberry at Tier 0. Shifted all other fruits up by 1 tier.
 const FRUITS = [
-  { tier: 0, name: "Cherry",     radius: 16, color: 0xe53935, score: 1 },
-  { tier: 1, name: "Strawberry", radius: 20, color: 0xff5c8a, score: 3 }, // Updated!
-  { tier: 2, name: "Grape",      radius: 26, color: 0x8e24aa, score: 6 },
-  { tier: 3, name: "Orange",     radius: 36, color: 0xfb8c00, score: 10 },
-  { tier: 4, name: "Peach",      radius: 60, color: 0xffab91, score: 15 }, 
-  { tier: 5, name: "Coconut",    radius: 90, color: 0x5d4037, score: 25 }, 
-  { tier: 6, name: "Pineapple",  radius: 120, color: 0xfbc02d, score: 40 }, 
-  { tier: 7, name: "Watermelon", radius: 150, color: 0x2e7d32, score: 60 }, // Updated!
+  { tier: 0, name: "Blueberry",  radius: 11, color: 0x1a237e, score: 1 },  // New Tier 0
+  { tier: 1, name: "Cherry",     radius: 16, color: 0xe53935, score: 2 },  
+  { tier: 2, name: "Strawberry", radius: 20, color: 0xff5c8a, score: 4 }, 
+  { tier: 3, name: "Grape",      radius: 29, color: 0x8e24aa, score: 7 }, 
+  { tier: 4, name: "Orange",     radius: 40, color: 0xfb8c00, score: 11 }, 
+  { tier: 5, name: "Peach",      radius: 65, color: 0xffab91, score: 16 }, 
+  { tier: 6, name: "Coconut",    radius: 95, color: 0x5d4037, score: 26 }, 
+  { tier: 7, name: "Pineapple",  radius: 124, color: 0xfbc02d, score: 41 }, 
+  { tier: 8, name: "Watermelon", radius: 150, color: 0x2e7d32, score: 65 }, 
 ];
 
 const GAME_WIDTH = 480;
@@ -29,6 +30,7 @@ let gameOver = false;
 let aboveLineSince = null;
 
 function randomDropTier() {
+  // Players can drop the first 4 fruits: Blueberry, Cherry, Strawberry, or Grape.
   return Phaser.Math.Between(0, 3);
 }
 
@@ -150,6 +152,7 @@ class MainScene extends Phaser.Scene {
       a.destroy();
       b.destroy();
 
+      // Automatically adapts to checking the last index dynamically
       const isMaxTier = (tier === FRUITS.length - 1);
 
       if (!isMaxTier) {
