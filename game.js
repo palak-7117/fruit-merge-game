@@ -11,7 +11,7 @@ const FRUITS = [
   { tier: 4, name: "Orange",     radius: 40, score: 11 }, 
   { tier: 5, name: "Peach",      radius: 65, score: 16 }, 
   { tier: 6, name: "Coconut",    radius: 95, score: 26 }, 
-  { tier: 7, name: "Green Apple", radius: 124, score: 41 }, // Replaced Pineapple, kept size
+  { tier: 7, name: "Green Apple", radius: 124, score: 41 }, 
   { tier: 8, name: "Watermelon", radius: 150, score: 65 }, 
 ];
 
@@ -29,6 +29,7 @@ let gameOver = false;
 let aboveLineSince = null;
 
 function randomDropTier() {
+  // Player drops from the first 4 tiers (Blueberry, Cherry, Strawberry, Grape)
   return Phaser.Math.Between(0, 3);
 }
 
@@ -38,7 +39,7 @@ class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // Array updated: "greenapple" replaces "pineapple"
+    // Looks for lowercase filenames inside your assets/ folder
     const names = ["blueberry", "cherry", "strawberry", "grape", "orange", "peach", "coconut", "greenapple", "watermelon"];
     
     FRUITS.forEach((fruit, index) => {
@@ -49,14 +50,17 @@ class MainScene extends Phaser.Scene {
   create() {
     this.matter.world.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
+    // Dynamic bounding container
     this.matter.add.rectangle(-WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
     this.matter.add.rectangle(GAME_WIDTH + WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
     this.matter.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + WALL_THICKNESS / 2, GAME_WIDTH, WALL_THICKNESS, { isStatic: true });
 
+    // Visual dead-line indicator
     this.lineGraphic = this.add.graphics();
     this.lineGraphic.lineStyle(2, 0xff5252, 0.6);
     this.lineGraphic.lineBetween(0, GAME_OVER_LINE_Y, GAME_WIDTH, GAME_OVER_LINE_Y);
 
+    // Initial drop preview placement
     this.previewX = GAME_WIDTH / 2;
     this.previewSprite = this.add.image(this.previewX, DROP_Y, `fruit-${nextFruitTier}`);
     
@@ -98,7 +102,6 @@ class MainScene extends Phaser.Scene {
     const body = this.matter.add.image(this.previewX, DROP_Y, `fruit-${tier}`);
     
     body.setDisplaySize(fruit.radius * 2, fruit.radius * 2);
-    
     body.setCircle(fruit.radius);
     body.setBounce(0.12); 
     body.setFriction(0.3);
@@ -165,7 +168,6 @@ class MainScene extends Phaser.Scene {
         const merged = this.matter.add.image(midX, midY, `fruit-${newTier}`);
         
         merged.setDisplaySize(newFruit.radius * 2, newFruit.radius * 2);
-        
         merged.setCircle(newFruit.radius);
         merged.setBounce(0.12);
         merged.setFriction(0.3);
