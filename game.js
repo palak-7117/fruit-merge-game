@@ -1,129 +1,298 @@
-const config = {
-    type: Phaser.AUTO,
-    width: 450,
-    height: 700,
-    parent: 'game-container',
-    backgroundColor: '#ecf0f1',
-    physics: {
-        default: 'arcade',
-        arcade: {
-            gravity: { y: 600 },
-            debug: true // Change to false later to hide outlines
-        }
-    },
-    scene: {
-        preload: preload,
-        create: create,
-        update: update
-    }
-};
+// ---------------------------------------------------------
+// FRUIT MERGE GAME
+// Built with Phaser 3 + Matter.js physics
+// ---------------------------------------------------------
 
-const game = new Phaser.Game(config);
-
-let ground;
-let currentFruit = null; 
-let fruitsGroup;
-let score = 0;
-let scoreText;
-
-// Define our fruit tier list (sizes, colors, and upgrade paths)
-const FRUIT_TYPES = [
-    { id: 0, radius: 15, color: 0xe74c3c }, // 0: Cherry (Small Red)
-    { id: 1, radius: 25, color: 0xff7675 }, // 1: Strawberry (Medium Pink)
-    { id: 2, radius: 40, color: 0x9b59b6 }, // 2: Grape (Large Purple)
-    { id: 3, radius: 60, color: 0xf1c40f }  // 3: Lemon (Giant Yellow)
+// Fruit tiers: each tier merges into the next when two of the
+// same tier collide. Radius/color/score scale up as tiers increase.
+const FRUITS = [
+  { tier: 0, name: "Cherry",     radius: 16, color: 0xe53935, score: 1 },
+  { tier: 1, name: "Strawberry", radius: 22, color: 0xff5c8a, score: 3 },
+  { tier: 2, name: "Grape",      radius: 28, color: 0x8e24aa, score: 6 },
+  { tier: 3, name: "Orange",     radius: 36, color: 0xfb8c00, score: 10 },
+  { tier: 4, name: "Lemon",      radius: 44, color: 0xfdd835, score: 15 },
+  { tier: 5, name: "Apple",      radius: 52, color: 0x43a047, score: 21 },
+  { tier: 6, name: "Pear",       radius: 60, color: 0x9ccc65, score: 28 },
+  { tier: 7, name: "Peach",      radius: 68, color: 0xffab91, score: 36 },
+  { tier: 8, name: "Pineapple",  radius: 78, color: 0xfbc02d, score: 45 },
+  { tier: 9, name: "Melon",      radius: 90, color: 0x66bb6a, score: 55 },
+  { tier: 10, name: "Watermelon", radius: 104, color: 0x2e7d32, score: 66 },
 ];
 
-function preload() {}
+const GAME_WIDTH = 480;
+const GAME_HEIGHT = 640;
+const WALL_THICKNESS = 20;
+const DROP_Y = 70;              // height at which the "next fruit" hovers before dropping
+const GAME_OVER_LINE_Y = 110;   // if settled fruits stack above this line, game over
+const GAME_OVER_GRACE_MS = 1500; // how long a fruit must stay above the line before game over
 
-function create() {
-    console.log("Merge systems active.");
+let score = 0;
+let nextFruitTier = randomDropTier();
+let canDrop = true;
+let gameOver = false;
+let aboveLineSince = null;
 
-    // 1. Score display
-    scoreText = this.add.text(20, 20, 'Score: 0', { fontSize: '24px', fill: '#2c3e50', fontFamily: 'Arial' });
+function randomDropTier() {
+  // Only the smallest few tiers are droppable by the player.
+  return Phaser.Math.Between(0, 3);
+}
 
-    ground = this.add.rectangle(225, 680, 450, 40, 0x2c3e50);
-    this.physics.add.existing(ground, true);
+class MainScene extends Phaser.Scene {
+  constructor() {
+    super("MainScene");
+  }
 
-    fruitsGroup = this.physics.add.group();
-
-    this.physics.add.collider(fruitsGroup, ground);
-    
-    // 2. This is where the magic happens. When two fruits touch, run 'handleMerge'
-    this.physics.add.collider(fruitsGroup, fruitsGroup, handleMerge, null, this);
-
-    spawnNewFruit.call(this);
-
-    this.input.on('pointerdown', (pointer) => {
-        if (currentFruit) {
-            currentFruit.body.setAllowGravity(true);
-            fruitsGroup.add(currentFruit);
-            currentFruit = null;
-            this.time.delayedCall(800, spawnNewFruit, [], this);
-        }
+  preload() {
+    // Generate a circle texture for each fruit tier at runtime,
+    // so the game doesn't depend on external image assets.
+    FRUITS.forEach((fruit) => {
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+      const d = fruit.radius * 2;
+      g.fillStyle(fruit.color, 1);
+      g.fillCircle(fruit.radius, fruit.radius, fruit.radius);
+      g.lineStyle(3, 0x000000, 0.15);
+      g.strokeCircle(fruit.radius, fruit.radius, fruit.radius);
+      g.generateTexture(`fruit-${fruit.tier}`, d, d);
+      g.destroy();
     });
-}
+  }
 
-function update() {
-    if (currentFruit) {
-        let pointerX = this.input.activePointer.x;
-        let radius = currentFruit.displayOriginX; // dynamic boundary check based on fruit size
-        if (pointerX < radius) pointerX = radius;
-        if (pointerX > 450 - radius) pointerX = 450 - radius;
-        currentFruit.x = pointerX;
+  create() {
+    this.matter.world.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Side and bottom walls (static bodies). Slight overlap with the
+    // visible edges prevents fruits from slipping through gaps.
+    this.matter.add.rectangle(-WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
+    this.matter.add.rectangle(GAME_WIDTH + WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
+    this.matter.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + WALL_THICKNESS / 2, GAME_WIDTH, WALL_THICKNESS, { isStatic: true });
+
+    // Visual game-over line
+    this.lineGraphic = this.add.graphics();
+    this.lineGraphic.lineStyle(2, 0xff5252, 0.6);
+    this.lineGraphic.lineBetween(0, GAME_OVER_LINE_Y, GAME_WIDTH, GAME_OVER_LINE_Y);
+
+    // Preview fruit that follows the pointer before dropping
+    this.previewX = GAME_WIDTH / 2;
+    this.previewSprite = this.add.image(this.previewX, DROP_Y, `fruit-${nextFruitTier}`);
+    this.updateNextFruitUI();
+
+    this.input.on("pointermove", (pointer) => {
+      if (gameOver) return;
+      const fruit = FRUITS[nextFruitTier];
+      const minX = fruit.radius + 4;
+      const maxX = GAME_WIDTH - fruit.radius - 4;
+      this.previewX = Phaser.Math.Clamp(pointer.x, minX, maxX);
+      this.previewSprite.x = this.previewX;
+    });
+
+    this.input.on("pointerdown", () => {
+      if (gameOver) return;
+      this.dropFruit();
+    });
+
+    // Collision handling drives the merge logic.
+    // IMPORTANT: we do NOT destroy/create bodies here. Matter is still
+    // mid-step during this event, and mutating the world now (especially
+    // with large fruits touching several others at once) corrupts its
+    // internal state and freezes the page. Instead we just queue the
+    // merge and process it safely in update(), after the step is done.
+    this.pendingMerges = [];
+    this.matter.world.on("collisionstart", (event) => {
+      event.pairs.forEach((pair) => this.queueMerge(pair));
+    });
+
+    // Restart button
+    document.getElementById("restart-btn").addEventListener("click", () => {
+      this.restartGame();
+    });
+  }
+
+  dropFruit() {
+    if (!canDrop) return;
+    canDrop = false;
+
+    const tier = nextFruitTier;
+    const fruit = FRUITS[tier];
+    const body = this.matter.add.image(this.previewX, DROP_Y, `fruit-${tier}`);
+    body.setCircle(fruit.radius);
+    body.setBounce(0.15);
+    body.setFriction(0.4);
+    body.setFrictionAir(0.001);
+    body.setData("tier", tier);
+    body.setData("merging", false);
+    body.setData("droppedAt", this.time.now);
+
+    // Prep the next fruit preview
+    nextFruitTier = randomDropTier();
+    this.previewSprite.setTexture(`fruit-${nextFruitTier}`);
+    this.updateNextFruitUI();
+
+    // Small cooldown so players can't spam-drop fruits on top of each other
+    this.time.delayedCall(450, () => {
+      canDrop = true;
+    });
+  }
+
+  queueMerge(pair) {
+    const a = pair.bodyA.gameObject;
+    const b = pair.bodyB.gameObject;
+    if (!a || !b) return;
+    if (!a.getData || !b.getData) return;
+    if (!a.active || !b.active) return; // already destroyed/queued this frame
+
+    const tierA = a.getData("tier");
+    const tierB = b.getData("tier");
+    if (tierA === undefined || tierB === undefined) return;
+    if (tierA !== tierB) return;
+    if (a.getData("merging") || b.getData("merging")) return;
+
+    // Mark both as merging immediately (synchronously, still safe since
+    // this only flips a flag) to prevent the same pair, or either body
+    // paired with a third fruit, from being queued again this frame.
+    a.setData("merging", true);
+    b.setData("merging", true);
+
+    this.pendingMerges.push({ a, b, tier: tierA });
+  }
+
+  processPendingMerges() {
+    if (!this.pendingMerges || this.pendingMerges.length === 0) return;
+
+    const merges = this.pendingMerges;
+    this.pendingMerges = [];
+
+    merges.forEach(({ a, b, tier }) => {
+      // Guard again in case something already cleaned these up
+      if (!a.active || !b.active) return;
+
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      const fruitData = FRUITS[tier];
+
+      score += fruitData.score;
+
+      a.destroy();
+      b.destroy();
+
+      // Defensive check: instead of only trusting tier arithmetic,
+      // confirm the next tier actually exists in FRUITS. This prevents
+      // ever trying to spawn an undefined fruit (which would render
+      // using a missing/fallback texture and look like a broken,
+      // oversized blob) if the array ever gets edited or mismatched.
+      const isMaxTier = tier >= FRUITS.length - 1 || !FRUITS[tier + 1];
+      if (!isMaxTier) {
+        const newTier = tier + 1;
+        const newFruit = FRUITS[newTier];
+        const merged = this.matter.add.image(midX, midY, `fruit-${newTier}`);
+        merged.setCircle(newFruit.radius);
+        merged.setBounce(0.15);
+        merged.setFriction(0.4);
+        merged.setFrictionAir(0.001);
+        merged.setData("tier", newTier);
+        merged.setData("merging", false);
+        merged.setData("droppedAt", this.time.now);
+
+        // No tween here on purpose: if this fruit gets merged again
+        // before a tween finishes, Phaser keeps trying to animate a
+        // destroyed object's scale, which throws every frame and
+        // freezes the tab. A flat scale is more stable than it sounds.
+        merged.setScale(1);
+
+        // Zero out velocity so that spawning into a crowded spot
+        // (e.g. near a wall) doesn't make Matter's overlap-resolution
+        // fling the new fruit (and its neighbors) violently, which is
+        // the other thing that was causing the freeze.
+        merged.setVelocity(0, 0);
+        merged.setAngularVelocity(0);
+      } else {
+        // Max-tier merge: just a score bonus burst, nothing left to spawn
+        score += 50;
+      }
+    });
+
+    this.updateScoreUI();
+  }
+
+  updateScoreUI() {
+    document.getElementById("score-value").textContent = score;
+  }
+
+  updateNextFruitUI() {
+    document.getElementById("next-fruit-label").textContent = FRUITS[nextFruitTier].name;
+  }
+
+  checkGameOver() {
+    if (gameOver) return;
+
+    const bodies = this.matter.world.localWorld.bodies;
+    let someoneAboveLine = false;
+
+    bodies.forEach((body) => {
+      if (body.isStatic || !body.gameObject) return;
+      const go = body.gameObject;
+      // Ignore fruits that were just dropped — give them time to fall
+      const age = this.time.now - (go.getData("droppedAt") || 0);
+      if (age < 700) return;
+
+      // Only count fruits that have basically stopped moving (settled)
+      const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2);
+      if (speed > 0.3) return;
+
+      if (go.y - go.getData("tier") >= 0 && go.y < GAME_OVER_LINE_Y) {
+        someoneAboveLine = true;
+      }
+    });
+
+    if (someoneAboveLine) {
+      if (aboveLineSince === null) {
+        aboveLineSince = this.time.now;
+      } else if (this.time.now - aboveLineSince > GAME_OVER_GRACE_MS) {
+        this.triggerGameOver();
+      }
+    } else {
+      aboveLineSince = null;
     }
-}
+  }
 
-function spawnNewFruit() {
-    // Drop only small fruits (ID 0 or ID 1) to keep the game fair
-    let randomType = FRUIT_TYPES[Math.floor(Math.random() * 2)];
-    
-    currentFruit = createFruitObject.call(this, 225, 50, randomType);
-    currentFruit.body.setAllowGravity(false);
-}
+  triggerGameOver() {
+    gameOver = true;
+    document.getElementById("final-score").textContent = score;
+    document.getElementById("game-over-screen").classList.remove("hidden");
+  }
 
-// Helper function to build a fruit object with its specific properties
-function createFruitObject(x, y, typeData) {
-    let fruit = this.add.circle(x, y, typeData.radius, typeData.color);
-    this.physics.add.existing(fruit);
-    
-    fruit.body.setBounce(0.2);
-    fruit.body.setCollideWorldBounds(true);
-    
-    // Save custom properties inside the object so we can read them later
-    fruit.fruitId = typeData.id;
-    
-    return fruit;
-}
+  restartGame() {
+    score = 0;
+    nextFruitTier = randomDropTier();
+    canDrop = true;
+    gameOver = false;
+    aboveLineSince = null;
+    this.updateScoreUI();
+    document.getElementById("game-over-screen").classList.add("hidden");
+    this.scene.restart();
+  }
 
-// The core algorithm of your game
-function handleMerge(fruit1, fruit2) {
-    // Rule 1: Check if they are the exact same type of fruit
-    // Rule 2: Check to ensure they haven't already been marked for deletion
-    if (fruit1.fruitId === fruit2.fruitId && fruit1.active && fruit2.active) {
-        
-        let currentId = fruit1.fruitId;
-        let nextId = currentId + 1;
-
-        // Calculate mid-point position between the two fruits to spawn the upgraded one
-        let newX = (fruit1.x + fruit2.x) / 2;
-        let newY = (fruit1.y + fruit2.y) / 2;
-
-        // Destroy both old fruits safely
-        fruit1.destroy();
-        fruit2.destroy();
-
-        // Update score
-        score += (currentId + 1) * 10;
-        scoreText.setText('Score: ' + score);
-
-        // If there's a bigger fruit available in our tier list, spawn it!
-        if (nextId < FRUIT_TYPES.length) {
-            let nextFruitType = FRUIT_TYPES[nextId];
-            let upgradedFruit = createFruitObject.call(this, newX, newY, nextFruitType);
-            
-            // Add the new fruit immediately to our physics group
-            fruitsGroup.add(upgradedFruit);
-        }
+  update() {
+    this.processPendingMerges();
+    if (!gameOver) {
+      this.checkGameOver();
     }
+  }
 }
+
+const config = {
+  type: Phaser.AUTO,
+  width: GAME_WIDTH,
+  height: GAME_HEIGHT,
+  parent: "phaser-game",
+  backgroundColor: "#fff3df",
+  physics: {
+    default: "matter",
+    matter: {
+      gravity: { y: 1 },
+      debug: false,
+    },
+  },
+  scene: [MainScene],
+};
+
+new Phaser.Game(config);
