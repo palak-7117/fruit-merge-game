@@ -1,5 +1,5 @@
 // ---------------------------------------------------------
-// FRUIT MERGE GAME (TEXTURE ANTI-ALIASING & SMOOTH SCALING)
+// FRUIT MERGE GAME (PHASER ENGINE CRASH PATCH)
 // Built with Phaser 3 + Matter.js physics
 // ---------------------------------------------------------
 
@@ -59,7 +59,6 @@ class MainScene extends Phaser.Scene {
     this.previewSprite = this.add.image(this.previewX, DROP_Y, `fruit-${nextFruitTier}`);
     
     this.scaleSpriteToRadius(this.previewSprite, FRUITS[nextFruitTier].radius);
-    
     this.updateNextFruitUI();
 
     this.input.on("pointermove", (pointer) => {
@@ -81,20 +80,15 @@ class MainScene extends Phaser.Scene {
       event.pairs.forEach((pair) => this.queueMerge(pair));
     });
 
-    document.getElementById("restart-btn").addEventListener("click", () => {
-      this.restartGame();
-    });
+    const restartBtn = document.getElementById("restart-btn");
+    if (restartBtn) {
+      restartBtn.addEventListener("click", () => this.restartGame());
+    }
   }
 
-  // FIXED: Enhanced scale engine with hardware anti-alias filtering
+  // FIXED: Removed the invalid .setFilter method call to resolve the TypeError crash completely
   scaleSpriteToRadius(sprite, radius) {
-    const targetWidth = radius * 2;
-    const nativeWidth = sprite.texture.getSourceImage().width;
-    if (nativeWidth > 0) {
-      sprite.setScale(targetWidth / nativeWidth);
-      // Force WebGL/Canvas to use high-quality linear interpolation filtering
-      sprite.setFilter(Phaser.Textures.FilterMode.LINEAR);
-    }
+    sprite.setDisplaySize(radius * 2, radius * 2);
   }
 
   dropFruit() {
@@ -129,14 +123,11 @@ class MainScene extends Phaser.Scene {
   queueMerge(pair) {
     const a = pair.bodyA.gameObject;
     const b = pair.bodyB.gameObject;
-    if (!a || !b) return;
-    if (!a.getData || !b.getData) return;
-    if (!a.active || !b.active) return; 
+    if (!a || !b || !a.active || !b.active) return; 
 
     const tierA = a.getData("tier");
     const tierB = b.getData("tier");
-    if (tierA === undefined || tierB === undefined) return;
-    if (tierA !== tierB) return;
+    if (tierA === undefined || tierB === undefined || tierA !== tierB) return;
     if (a.getData("merging") || b.getData("merging")) return;
 
     a.setData("merging", true);
@@ -191,11 +182,15 @@ class MainScene extends Phaser.Scene {
   }
 
   updateScoreUI() {
-    document.getElementById("score-value").textContent = score;
+    const scoreVal = document.getElementById("score-value");
+    if (scoreVal) scoreVal.textContent = score;
   }
 
   updateNextFruitUI() {
-    document.getElementById("next-fruit-label").textContent = FRUITS[nextFruitTier].name;
+    const nextLabel = document.getElementById("next-fruit-label");
+    if (nextLabel && FRUITS[nextFruitTier]) {
+      nextLabel.textContent = FRUITS[nextFruitTier].name;
+    }
   }
 
   checkGameOver() {
@@ -231,8 +226,10 @@ class MainScene extends Phaser.Scene {
 
   triggerGameOver() {
     gameOver = true;
-    document.getElementById("final-score").textContent = score;
-    document.getElementById("game-over-screen").classList.remove("hidden");
+    const finalScore = document.getElementById("final-score");
+    const gameOverScreen = document.getElementById("game-over-screen");
+    if (finalScore) finalScore.textContent = score;
+    if (gameOverScreen) gameOverScreen.classList.remove("hidden");
   }
 
   restartGame() {
@@ -242,7 +239,8 @@ class MainScene extends Phaser.Scene {
     gameOver = false;
     aboveLineSince = null;
     this.updateScoreUI();
-    document.getElementById("game-over-screen").classList.add("hidden");
+    const gameOverScreen = document.getElementById("game-over-screen");
+    if (gameOverScreen) gameOverScreen.classList.add("hidden");
     this.scene.restart();
   }
 
@@ -260,8 +258,8 @@ const config = {
   height: GAME_HEIGHT,
   parent: "phaser-game",
   backgroundColor: "#fff3df",
-  antialias: true,            // FIXED: Forces hardware anti-aliasing globally
-  pixelArt: false,            // FIXED: Turns off sharp pixel cutting filters
+  antialias: true,            
+  pixelArt: false,            
   physics: {
     default: "matter",
     matter: {
