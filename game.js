@@ -3,18 +3,16 @@
 // Built with Phaser 3 + Matter.js physics
 // ---------------------------------------------------------
 
-// Removed: Lemon, Apple, Pear. Adjusted sizes exponentially.
+// Strawberry adjusted to 20, Watermelon to 150. Intermediate steps re-balanced.
 const FRUITS = [
   { tier: 0, name: "Cherry",     radius: 16, color: 0xe53935, score: 1 },
-  { tier: 1, name: "Strawberry", radius: 22, color: 0xff5c8a, score: 3 },
-  { tier: 2, name: "Grape",      radius: 29, color: 0x8e24aa, score: 6 },
-  { tier: 3, name: "Orange",     radius: 40, color: 0xfb8c00, score: 10 },
-  
-  // SIZES EXPLODE HERE FOR INTENSE LATE-GAME DIFFICULTY
-  { tier: 4, name: "Peach",      radius: 65, color: 0xffab91, score: 15 }, // Large jump
-  { tier: 5, name: "Pineapple",  radius: 95, color: 0xfbc02d, score: 25 }, // Massive wall blocker
-  { tier: 6, name: "Coconut",    radius: 124, color: 0x5d4037, score: 40 }, // Extremely dense
-  { tier: 7, name: "Watermelon", radius: 155, color: 0x2e7d32, score: 60 }, // COLOSSAL FINAL BOSS (310px wide!)
+  { tier: 1, name: "Strawberry", radius: 20, color: 0xff5c8a, score: 3 }, // Updated!
+  { tier: 2, name: "Grape",      radius: 26, color: 0x8e24aa, score: 6 },
+  { tier: 3, name: "Orange",     radius: 36, color: 0xfb8c00, score: 10 },
+  { tier: 4, name: "Peach",      radius: 60, color: 0xffab91, score: 15 }, 
+  { tier: 5, name: "Coconut",    radius: 90, color: 0x5d4037, score: 25 }, 
+  { tier: 6, name: "Pineapple",  radius: 120, color: 0xfbc02d, score: 40 }, 
+  { tier: 7, name: "Watermelon", radius: 150, color: 0x2e7d32, score: 60 }, // Updated!
 ];
 
 const GAME_WIDTH = 480;
@@ -31,7 +29,6 @@ let gameOver = false;
 let aboveLineSince = null;
 
 function randomDropTier() {
-  // Player can drop Cherry, Strawberry, Grape, or Orange.
   return Phaser.Math.Between(0, 3);
 }
 
@@ -100,7 +97,7 @@ class MainScene extends Phaser.Scene {
     const fruit = FRUITS[tier];
     const body = this.matter.add.image(this.previewX, DROP_Y, `fruit-${tier}`);
     body.setCircle(fruit.radius);
-    body.setBounce(0.12); // Slightly lower bounce to help handle huge mass stability
+    body.setBounce(0.12); 
     body.setFriction(0.3);
     body.setFrictionAir(0.001);
     body.setData("tier", tier);
@@ -153,7 +150,6 @@ class MainScene extends Phaser.Scene {
       a.destroy();
       b.destroy();
 
-      // Check if they are Watermelons (Tier 7 now)
       const isMaxTier = (tier === FRUITS.length - 1);
 
       if (!isMaxTier) {
@@ -171,8 +167,7 @@ class MainScene extends Phaser.Scene {
         merged.setVelocity(0, 0);
         merged.setAngularVelocity(0);
       } else {
-        // Watermelon explosion pop reward
-        score += 150; // Bigger reward for higher difficulty
+        score += 150; 
         console.log("Two giant Watermelons popped!");
       }
     });
