@@ -1,30 +1,28 @@
 // ---------------------------------------------------------
-// FRUIT MERGE GAME
+// FRUIT MERGE GAME (8-TIER AGGRESSIVE DIFFICULTY PROFILE)
 // Built with Phaser 3 + Matter.js physics
 // ---------------------------------------------------------
 
-// Fruit tiers: each tier merges into the next when two of the
-// same tier collide. Radius/color/score scale up as tiers increase.
+// Removed: Lemon, Apple, Pear. Adjusted sizes exponentially.
 const FRUITS = [
   { tier: 0, name: "Cherry",     radius: 16, color: 0xe53935, score: 1 },
   { tier: 1, name: "Strawberry", radius: 22, color: 0xff5c8a, score: 3 },
-  { tier: 2, name: "Grape",      radius: 28, color: 0x8e24aa, score: 6 },
-  { tier: 3, name: "Orange",     radius: 36, color: 0xfb8c00, score: 10 },
-  { tier: 4, name: "Lemon",      radius: 44, color: 0xfdd835, score: 15 },
-  { tier: 5, name: "Apple",      radius: 54, color: 0x43a047, score: 21 }, 
-  { tier: 6, name: "Pear",       radius: 66, color: 0x9ccc65, score: 28 }, 
-  { tier: 7, name: "Peach",      radius: 80, color: 0xffab91, score: 36 }, 
-  { tier: 8, name: "Pineapple",  radius: 96, color: 0xfbc02d, score: 45 }, 
-  { tier: 9, name: "Coconut",    radius: 115, color: 0x5d4037, score: 55 }, 
-  { tier: 10, name: "Watermelon", radius: 140, color: 0x2e7d32, score: 66 }, // NEW GIANT RADIUS
+  { tier: 2, name: "Grape",      radius: 29, color: 0x8e24aa, score: 6 },
+  { tier: 3, name: "Orange",     radius: 40, color: 0xfb8c00, score: 10 },
+  
+  // SIZES EXPLODE HERE FOR INTENSE LATE-GAME DIFFICULTY
+  { tier: 4, name: "Peach",      radius: 65, color: 0xffab91, score: 15 }, // Large jump
+  { tier: 5, name: "Pineapple",  radius: 95, color: 0xfbc02d, score: 25 }, // Massive wall blocker
+  { tier: 6, name: "Coconut",    radius: 124, color: 0x5d4037, score: 40 }, // Extremely dense
+  { tier: 7, name: "Watermelon", radius: 155, color: 0x2e7d32, score: 60 }, // COLOSSAL FINAL BOSS (310px wide!)
 ];
 
 const GAME_WIDTH = 480;
 const GAME_HEIGHT = 640;
 const WALL_THICKNESS = 20;
-const DROP_Y = 70;              // height at which the "next fruit" hovers before dropping
-const GAME_OVER_LINE_Y = 110;   // if settled fruits stack above this line, game over
-const GAME_OVER_GRACE_MS = 1500; // how long a fruit must stay above the line before game over
+const DROP_Y = 70;              
+const GAME_OVER_LINE_Y = 110;   
+const GAME_OVER_GRACE_MS = 1500; 
 
 let score = 0;
 let nextFruitTier = randomDropTier();
@@ -33,7 +31,7 @@ let gameOver = false;
 let aboveLineSince = null;
 
 function randomDropTier() {
-  // Only the smallest few tiers are droppable by the player.
+  // Player can drop Cherry, Strawberry, Grape, or Orange.
   return Phaser.Math.Between(0, 3);
 }
 
@@ -43,8 +41,6 @@ class MainScene extends Phaser.Scene {
   }
 
   preload() {
-    // Generate a circle texture for each fruit tier at runtime,
-    // so the game doesn't depend on external image assets.
     FRUITS.forEach((fruit) => {
       const g = this.make.graphics({ x: 0, y: 0, add: false });
       const d = fruit.radius * 2;
@@ -60,18 +56,14 @@ class MainScene extends Phaser.Scene {
   create() {
     this.matter.world.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Side and bottom walls (static bodies). Slight overlap with the
-    // visible edges prevents fruits from slipping through gaps.
     this.matter.add.rectangle(-WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
     this.matter.add.rectangle(GAME_WIDTH + WALL_THICKNESS / 2, GAME_HEIGHT / 2, WALL_THICKNESS, GAME_HEIGHT, { isStatic: true });
     this.matter.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT + WALL_THICKNESS / 2, GAME_WIDTH, WALL_THICKNESS, { isStatic: true });
 
-    // Visual game-over line
     this.lineGraphic = this.add.graphics();
     this.lineGraphic.lineStyle(2, 0xff5252, 0.6);
     this.lineGraphic.lineBetween(0, GAME_OVER_LINE_Y, GAME_WIDTH, GAME_OVER_LINE_Y);
 
-    // Preview fruit that follows the pointer before dropping
     this.previewX = GAME_WIDTH / 2;
     this.previewSprite = this.add.image(this.previewX, DROP_Y, `fruit-${nextFruitTier}`);
     this.updateNextFruitUI();
@@ -90,13 +82,11 @@ class MainScene extends Phaser.Scene {
       this.dropFruit();
     });
 
-    // Collision handling drives the merge logic.
     this.pendingMerges = [];
     this.matter.world.on("collisionstart", (event) => {
       event.pairs.forEach((pair) => this.queueMerge(pair));
     });
 
-    // Restart button
     document.getElementById("restart-btn").addEventListener("click", () => {
       this.restartGame();
     });
@@ -110,19 +100,17 @@ class MainScene extends Phaser.Scene {
     const fruit = FRUITS[tier];
     const body = this.matter.add.image(this.previewX, DROP_Y, `fruit-${tier}`);
     body.setCircle(fruit.radius);
-    body.setBounce(0.15);
-    body.setFriction(0.4);
+    body.setBounce(0.12); // Slightly lower bounce to help handle huge mass stability
+    body.setFriction(0.3);
     body.setFrictionAir(0.001);
     body.setData("tier", tier);
     body.setData("merging", false);
     body.setData("droppedAt", this.time.now);
 
-    // Prep the next fruit preview
     nextFruitTier = randomDropTier();
     this.previewSprite.setTexture(`fruit-${nextFruitTier}`);
     this.updateNextFruitUI();
 
-    // Small cooldown so players can't spam-drop fruits on top of each other
     this.time.delayedCall(450, () => {
       canDrop = true;
     });
@@ -160,13 +148,12 @@ class MainScene extends Phaser.Scene {
       const midY = (a.y + b.y) / 2;
       const fruitData = FRUITS[tier];
 
-      // Add the score of the merged fruit items
       score += fruitData.score;
 
       a.destroy();
       b.destroy();
 
-      // Check if the current merging components are the highest tier (Watermelon)
+      // Check if they are Watermelons (Tier 7 now)
       const isMaxTier = (tier === FRUITS.length - 1);
 
       if (!isMaxTier) {
@@ -174,8 +161,8 @@ class MainScene extends Phaser.Scene {
         const newFruit = FRUITS[newTier];
         const merged = this.matter.add.image(midX, midY, `fruit-${newTier}`);
         merged.setCircle(newFruit.radius);
-        merged.setBounce(0.15);
-        merged.setFriction(0.4);
+        merged.setBounce(0.12);
+        merged.setFriction(0.3);
         merged.setFrictionAir(0.001);
         merged.setData("tier", newTier);
         merged.setData("merging", false);
@@ -184,9 +171,9 @@ class MainScene extends Phaser.Scene {
         merged.setVelocity(0, 0);
         merged.setAngularVelocity(0);
       } else {
-        // Max-tier double watermelon merge pop event
-        score += 100; // Extra celebration bonus points
-        console.log("Two Watermelons combined! Clean pop logic triggered.");
+        // Watermelon explosion pop reward
+        score += 150; // Bigger reward for higher difficulty
+        console.log("Two giant Watermelons popped!");
       }
     });
 
